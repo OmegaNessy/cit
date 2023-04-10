@@ -1,6 +1,5 @@
 package com.cit.util;
 
-import com.cit.configuration.DBUpdate;
 import com.cit.entity.CryptoCurrency;
 import com.opencsv.bean.CsvToBean;
 import com.opencsv.bean.CsvToBeanBuilder;
@@ -29,16 +28,16 @@ public class CSVReader implements Reader {
         List<CryptoCurrency> data = new ArrayList<>();
         for (Path filePath : filePaths) {
             try (BufferedReader reader = Files.newBufferedReader(filePath)) {
-                logger.info(String.format("Parsing %s file",filePath.getFileName()));
+                logger.info("Parsing {} file",filePath.getFileName());
                 CsvToBean<CryptoCurrency> cb = new CsvToBeanBuilder(reader)
                         .withType(CryptoCurrency.class)
                         .withSeparator(',')
                         .build();
                 List<CryptoCurrency> parsedObjects = cb.parse();
-                logger.info(String.format("Parsed %d rows",parsedObjects.size()));
+                logger.info("Parsed {} rows",parsedObjects.size());
                 data.addAll(parsedObjects);
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.error("Error while reading file");
             }
         }
         return data;

@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.net.URL;
-import java.util.logging.Level;
 
 @Component
 public class DBUpdate {
@@ -26,12 +25,13 @@ public class DBUpdate {
     @EventListener(ApplicationReadyEvent.class)
     public void runAfterStartup() {
         URL url = getClass().getClassLoader().getResource("static");
-        if (url!=null){
+        if (url != null) {
             File[] dir = new File(url.getFile()).listFiles();
-            logger.info(String.format("Found %d files with data",dir.length));
+            if (dir != null) {
+                logger.info("Found {} files with data", dir.length);
+            }
             cryptoRepository.saveAllAndFlush(new CSVReader(dir).read());
-        }
-        else{
+        } else {
             logger.error("No file data provided. Other methods not supported");
             throw new UnsupportedOperationException("Supported only file data");
         }

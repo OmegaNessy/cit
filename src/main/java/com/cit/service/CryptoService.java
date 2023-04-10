@@ -1,6 +1,5 @@
 package com.cit.service;
 
-import com.cit.controller.CryptoInfoController;
 import com.cit.entity.CryptoCurrency;
 import com.cit.entity.Currency;
 import com.cit.entity.NormalizedDto;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,11 +23,17 @@ public class CryptoService {
     private static final String MIN_KEY = "min";
 
     private CryptoRepository cryptoRepository;
-    private Logger logger = LoggerFactory.getLogger(CryptoInfoController.class);
+    private Logger logger = LoggerFactory.getLogger(CryptoService.class);
+
+    private Map<String,SearchStrategy> searchStrategies = new HashMap<>();
 
     @Autowired
     public CryptoService(CryptoRepository cryptoRepository) {
         this.cryptoRepository = cryptoRepository;
+        searchStrategies.put(MIN_KEY, new MinimumSearchStrategy());
+        searchStrategies.put(MAX_KEY, new MaximumSearchStrategy());
+        searchStrategies.put(OLDEST_KEY, new OldestSearchStrategy());
+        searchStrategies.put(NEWEST_KEY, new NewestSearchStrategy());
     }
 
     public Map<String, Map<String, Currency>> getAllCurrencyInfoByMonth() {
@@ -43,7 +47,7 @@ public class CryptoService {
 
         for (Currency currency : currencies) {
             Map<String, Currency> currenciesByMonth = currency.getRatesByMonth();
-            logger.info(String.format("Info for %s crypto",currency));
+            logger.info("Info for {} crypto",currency);
             currenciesByMonth.forEach((k, v) -> {
                 Currency temp = new Currency();
                 temp.setSymbol(v.getSymbol());
@@ -73,7 +77,7 @@ public class CryptoService {
         result.put(MAX_KEY, maxCurrency);
         result.put(OLDEST_KEY, oldestCurrency);
         result.put(NEWEST_KEY, newestCurrency);
-        logger.info(String.format("Currency info : %s",result));
+        logger.info("Currency info : {}",result);
         return result;
     }
 
@@ -82,15 +86,15 @@ public class CryptoService {
         logger.info("Currency retrieved: ");
         List<NormalizedDto> dtoList = new ArrayList<>();
         for (Currency currency: currencyList){
-            logger.info(currency.toString());
             NormalizedDto dto = new NormalizedDto();
-            BigDecimal normalizedValue = calculateNormalizedRate(calculateMaxRate(currency.getRates()), calculateMinRate(currency.getRates()));
+            BigDecimal normalizedValue = calculateNormalizedRate(searchStrategies.get(MAX_KEY).search(currency.getRates()),
+                                                                 searchStrategies.get(MIN_KEY).search(currency.getRates()));
             dto.setSymbol(currency.getSymbol());
             dto.setValue(normalizedValue);
             dtoList.add(dto);
         }
         dtoList.sort(Comparator.comparing(NormalizedDto::getValue).reversed());
-        logger.info(String.format("Normalized Values : %s",dtoList));
+        logger.info("Normalized Values : {}",dtoList);
         return dtoList;
     }
 
@@ -98,28 +102,16 @@ public class CryptoService {
         List<Currency> currencyList = mapToCurrency(cryptoRepository.findBySymbol(cryptoName));
         logger.info("Currency retrieved: ");
         Map<String, Rate> result = new HashMap<>();
-//        for (AbstractCal parameter:searchType) { //TODO: finish this idea
-//            parameter.calculate(currencies);
-//        }
-//        Map<String, CryptoCurrency> result = calculateWithAttributes(attributes);
         for (Currency currency : currencyList) {
-            logger.info(currency.toString());
             if (currency.getSymbol().equals(cryptoName)) {
-                if (searchType.contains(MIN_KEY)) {
-                    result.put(MIN_KEY, calculateMinRate(currency.getRates()));
-                }
-                if (searchType.contains(MAX_KEY)) {
-                    result.put(MAX_KEY, calculateMaxRate(currency.getRates()));
-                }
-                if (searchType.contains(OLDEST_KEY)) {
-                    result.put(OLDEST_KEY, calculalateOldestRate(currency.getRates()));
-                }
-                if (searchType.contains(NEWEST_KEY)) {
-                    result.put(NEWEST_KEY, calculateNewestRate(currency.getRates()));
+                for (String type : searchType) {
+                    if (searchStrategies.containsKey(type)) {
+                        result.put(type,searchStrategies.get(type).search(currency.getRates()));
+                    }
                 }
             }
         }
-        logger.info(String.format("Currency found with parameters: %s",result));
+        logger.info("Currency found with parameters: {}", result);
         return result;
     }
 
@@ -130,10 +122,9 @@ public class CryptoService {
         Rate minDayRate;
         Map<String, BigDecimal> normalizedMap = new HashMap<>();
         for (Currency currency:list){
-            logger.info(currency.toString());
-            maxDayRate = calculateMaxRate(getRatesForDay(currency,date));
-            minDayRate = calculateMinRate(getRatesForDay(currency,date));
-            logger.info(String.format("Rates for %s by %s date: max-%s, min-%s",currency.getSymbol(),date,maxDayRate,minDayRate));
+            maxDayRate = searchStrategies.get(MAX_KEY).search(currency.getRatesForDay(currency,date));
+            minDayRate = searchStrategies.get(MIN_KEY).search(currency.getRatesForDay(currency,date));
+            logger.info("Rates for {} by {} date: max-{}, min-{}",currency.getSymbol(),date,maxDayRate,minDayRate);
             normalizedMap.put(currency.getSymbol(),calculateNormalizedRate(maxDayRate,minDayRate));
         }
         Map.Entry<String,BigDecimal> maxEntry = null;
@@ -144,7 +135,7 @@ public class CryptoService {
                 maxEntry = entry;
             }
         }
-        logger.info(String.format("Normalized Max Value: %s",maxEntry));
+        logger.info("Normalized Max Value: {}",maxEntry);
         return Map.ofEntries(maxEntry);
     }
 
@@ -167,29 +158,6 @@ public class CryptoService {
             currency.getRates().add(rate);
         }
         return currency;
-    }
-
-    public List<Rate> getRatesForDay(Currency currency,String date){
-        LocalDate localdate = LocalDate.parse(date);
-        long startDay = localdate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
-        long endDay = ZonedDateTime.of(localdate.atTime(LocalTime.MAX), ZoneId.systemDefault()).toInstant().toEpochMilli();
-        return currency.getRates().stream().filter(x -> x.getTimestamp() >= startDay && x.getTimestamp() <= endDay).toList();
-    }
-
-    public Rate calculateMaxRate(List<Rate> rates) {
-        return rates.stream().max(Comparator.comparing(Rate::getValue)).orElseThrow();
-    }
-
-    public Rate calculateMinRate(List<Rate> rates) {
-        return rates.stream().min(Comparator.comparing(Rate::getValue)).orElseThrow();
-    }
-
-    private Rate calculateNewestRate(List<Rate> rates) {
-        return rates.stream().max(Comparator.comparing(Rate::getTimestamp)).orElseThrow();
-    }
-
-    private Rate calculalateOldestRate(List<Rate> rates) {
-        return rates.stream().min(Comparator.comparing(Rate::getTimestamp)).orElseThrow();
     }
 
     private BigDecimal calculateNormalizedRate(Rate maxRate, Rate minRate) {

@@ -4,9 +4,7 @@ import lombok.Data;
 import lombok.ToString;
 
 import java.text.DateFormatSymbols;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,5 +33,10 @@ public class Currency {
         return result;
     }
 
-
+    public List<Rate> getRatesForDay(Currency currency,String date){
+        LocalDate localdate = LocalDate.parse(date);
+        long startDay = localdate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+        long endDay = ZonedDateTime.of(localdate.atTime(LocalTime.MAX), ZoneId.systemDefault()).toInstant().toEpochMilli();
+        return currency.getRates().stream().filter(x -> x.getTimestamp() >= startDay && x.getTimestamp() <= endDay).toList();
+    }
 }

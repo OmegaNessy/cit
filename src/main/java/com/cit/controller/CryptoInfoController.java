@@ -28,8 +28,8 @@ public class CryptoInfoController {
 
     @GetMapping(value = "/crypto")
     public ResponseEntity<Map<String, Rate>> getCryptoCurrencyInfoByParameters(@RequestParam List<String> searchType, @RequestParam String cryptoName) {
-        logger.info(String.format("Getting the values due to %s parameters for %s crypto",searchType,cryptoName));
-        return new ResponseEntity<>(cryptoService.  getCryptoByParameters(searchType, cryptoName), HttpStatus.OK);
+        logger.info("Getting the values due to {} parameters for {} crypto",searchType,cryptoName);
+        return new ResponseEntity<>(cryptoService.getCryptoByParameters(searchType, cryptoName), HttpStatus.OK);
     }
 
     @GetMapping(value = "/crypto/list")
@@ -40,7 +40,7 @@ public class CryptoInfoController {
 
     @GetMapping(value = "/crypto/normalized")
     public ResponseEntity<Map<String, BigDecimal>> getHighestNormalizedCrypto(@RequestParam String day) {
-        logger.info(String.format("return a descending sorted list of all the cryptos, comparing the normalized range by %s date",day));
+        logger.info("return a descending sorted list of all the cryptos, comparing the normalized range by {} date",day);
         return new ResponseEntity<>(cryptoService.getHighestNormalizedCrypto(day), HttpStatus.OK);
     }
 

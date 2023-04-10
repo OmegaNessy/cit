@@ -1,9 +1,9 @@
 package com.cit.entity;
 
 import com.opencsv.bean.CsvBindByName;
-import jakarta.persistence.*;
 import lombok.Data;
 
+import javax.persistence.*;
 import java.math.BigDecimal;
 
 @Data
